@@ -12,66 +12,38 @@ import { setAuthCookie } from "../../utils/setCookie"
 import { createUserTokens } from "../../utils/userTokens"
 import { AuthServices } from "./auth.service"
 
-const credentialsLogin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    // const loginInfo = await AuthServices.credentialsLogin(req.body)
+const credentialsLogin = (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate("local", async (err:any, user:any, info:any) => {
+        try {
+            if (err) return next(new AppError(401, err.message || "Authentication error"));
+            if (!user) return next(new AppError(401, info.message || "Invalid credentials"));
+            
+        
+                // @ts-ignore
+            const userTokens = createUserTokens(user);
 
-    passport.authenticate("local", async (err: any, user: any, info: any) => {
+            const { password, ...rest } = user.toObject();
 
-        if (err) {
+            setAuthCookie(res, userTokens);
+            console.log("set cookies")
 
-            // ❌❌❌❌❌
-            // throw new AppError(401, "Some error")
-            // next(err)
-            // return new AppError(401, err)
+            sendResponse(res, {
+                success: true,
+                statusCode: httpStatus.OK,
+                message: "User Logged In Successfully",
+                data: {
+                    accessToken: userTokens.accessToken,
+                    refreshToken: userTokens.refreshToken,
+                    user: rest,
+                },
+            });
 
-
-            // ✅✅✅✅
-            // return next(err)
-            // console.log("from err");
-            return next(new AppError(401, err))
+        } catch (error: any) {
+            return next(new AppError(500, error.message || "Server error"));
         }
+    })(req, res, next);
+};
 
-        if (!user) {
-            // console.log("from !user");
-            // return new AppError(401, info.message)
-            return next(new AppError(401, info.message))
-        }
-
-        const userTokens = await createUserTokens(user)
-
-        // delete user.toObject().password
-
-        const { password: pass, ...rest } = user.toObject()
-
-
-        setAuthCookie(res, userTokens)
-
-        sendResponse(res, {
-            success: true,
-            statusCode: httpStatus.OK,
-            message: "User Logged In Successfully",
-            data: {
-                accessToken: userTokens.accessToken,
-                refreshToken: userTokens.refreshToken,
-                user: rest
-
-            },
-        })
-    })(req, res, next)
-
-    // res.cookie("accessToken", loginInfo.accessToken, {
-    //     httpOnly: true,
-    //     secure: false
-    // })
-
-
-    // res.cookie("refreshToken", loginInfo.refreshToken, {
-    //     httpOnly: true,
-    //     secure: false,
-    // })
-
-
-})
 const getNewAccessToken = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const refreshToken = req.cookies.refreshToken;
     if (!refreshToken) {
@@ -93,6 +65,9 @@ const getNewAccessToken = catchAsync(async (req: Request, res: Response, next: N
         data: tokenInfo,
     })
 })
+
+
+
 const logout = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 
     res.clearCookie("accessToken", {
